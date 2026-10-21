@@ -270,32 +270,6 @@ Billing_Software/
 
 ---
 
-## Standardized API Response Convention
-
-All backend endpoints mounted at `/api/v1` adhere strictly to the uniform response structure:
-
-```json
-{
-  "success": true,
-  "message": "Operation completed successfully",
-  "data": { ... },
-  "error": null
-}
-```
-
-On validation or server failure:
-
-```json
-{
-  "success": false,
-  "message": "Required fields are missing",
-  "data": null,
-  "error": ["name", "sellingPrice"]
-}
-```
-
----
-
 ## Verification & Production Build
 
 To test the frontend production bundle:
