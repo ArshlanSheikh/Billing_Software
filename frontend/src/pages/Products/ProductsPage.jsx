@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { Plus, Search, Edit2, Trash2, Tag, Package, Check, X } from "lucide-react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { Plus, Search, Edit2, Trash2, Tag, Package, Check, X, Image as ImageIcon, Upload } from "lucide-react";
 import api from "../../services/api";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
@@ -15,8 +15,14 @@ const initialProductForm = {
   category: "General",
   sellingPrice: "",
   purchasePrice: "",
+  mrp: "",
+  brand: "",
+  barcode: "",
+  hsnCode: "",
   unit: "piece",
   taxRate: 0,
+  imageUrl: "",
+  imagePublicId: "",
 };
 
 const ProductsPage = () => {
@@ -85,6 +91,9 @@ const ProductsPage = () => {
     return () => clearTimeout(timer);
   }, [fetchProducts]);
 
+  const fileInputRef = useRef(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+
   const handleOpenAddModal = () => {
     setEditingProduct(null);
     setFormData({
@@ -103,10 +112,67 @@ const ProductsPage = () => {
       category: product.category || "General",
       sellingPrice: product.sellingPrice,
       purchasePrice: product.purchasePrice || "",
+      mrp: product.mrp !== undefined && product.mrp !== null ? product.mrp : "",
+      brand: product.brand || "",
+      barcode: product.barcode || "",
+      hsnCode: product.hsnCode || "",
       unit: product.unit || "piece",
       taxRate: product.taxRate || 0,
+      imageUrl: product.imageUrl || "",
+      imagePublicId: product.imagePublicId || "",
     });
     setIsProductModalOpen(true);
+  };
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      showToast("Please select a valid image file (PNG, JPG, WEBP, GIF)", "warning");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      showToast("Image size must be less than 5MB", "warning");
+      return;
+    }
+
+    try {
+      setUploadingImage(true);
+      const data = new FormData();
+      data.append("image", file);
+      if (formData.imagePublicId) {
+        data.append("oldPublicId", formData.imagePublicId);
+      }
+
+      const res = await api.post("/products/upload-image", data, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      if (res.success && res.data) {
+        setFormData((prev) => ({
+          ...prev,
+          imageUrl: res.data.imageUrl,
+          imagePublicId: res.data.imagePublicId,
+        }));
+        showToast("Product image uploaded to Cloudinary successfully", "success");
+      }
+    } catch (err) {
+      console.error("Image upload failed:", err);
+      showToast(err.message || "Failed to upload image to Cloudinary", "error");
+    } finally {
+      setUploadingImage(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setFormData((prev) => ({
+      ...prev,
+      imageUrl: "",
+      imagePublicId: "",
+    }));
   };
 
   const handleFormChange = (e) => {
@@ -120,6 +186,21 @@ const ProductsPage = () => {
       return;
     }
 
+    if (Number(formData.sellingPrice) < 0) {
+      showToast("Selling price cannot be negative", "warning");
+      return;
+    }
+
+    if (formData.mrp !== "" && Number(formData.mrp) < 0) {
+      showToast("MRP cannot be negative", "warning");
+      return;
+    }
+
+    if (formData.purchasePrice !== "" && Number(formData.purchasePrice) < 0) {
+      showToast("Purchase price cannot be negative", "warning");
+      return;
+    }
+
     try {
       setFormSubmitting(true);
       const payload = {
@@ -129,8 +210,14 @@ const ProductsPage = () => {
         category: formData.category,
         sellingPrice: Number(formData.sellingPrice),
         purchasePrice: formData.purchasePrice !== "" ? Number(formData.purchasePrice) : 0,
+        mrp: formData.mrp !== "" ? Number(formData.mrp) : undefined,
+        brand: formData.brand.trim(),
+        barcode: formData.barcode.trim(),
+        hsnCode: formData.hsnCode.trim(),
         unit: formData.unit,
         taxRate: Number(formData.taxRate) || 0,
+        imageUrl: formData.imageUrl ? formData.imageUrl.trim() : "",
+        imagePublicId: formData.imagePublicId ? formData.imagePublicId.trim() : "",
       };
 
       if (editingProduct) {
@@ -251,12 +338,14 @@ const ProductsPage = () => {
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>Product Name</th>
-                <th>SKU</th>
+                <th>Product</th>
+                <th>Code / Barcode</th>
                 <th>Category</th>
+                <th>Brand</th>
                 <th>Selling Price</th>
+                <th>MRP</th>
                 <th>Unit</th>
-                <th>Tax Rate</th>
+                <th>Tax</th>
                 <th>Status</th>
                 <th style={{ textAlign: "right" }}>Actions</th>
               </tr>
@@ -265,19 +354,47 @@ const ProductsPage = () => {
               {products.map((p) => (
                 <tr key={p._id}>
                   <td>
-                    <strong>{p.name}</strong>
-                    {p.description && (
-                      <div style={{ fontSize: "0.75rem", color: "#64748b" }}>{p.description}</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                      <div className={styles.tableThumb}>
+                        {p.imageUrl ? (
+                          <img src={p.imageUrl} alt={p.name} />
+                        ) : (
+                          <Package size={18} color="#94a3b8" />
+                        )}
+                      </div>
+                      <div>
+                        <strong>{p.name}</strong>
+                        {p.description && (
+                          <div style={{ fontSize: "0.75rem", color: "#64748b" }}>{p.description}</div>
+                        )}
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <div style={{ fontSize: "0.85rem", fontWeight: 600 }}>{p.sku || "—"}</div>
+                    {(p.barcode || p.hsnCode) && (
+                      <div style={{ fontSize: "0.725rem", color: "#64748b" }}>
+                        {[p.barcode ? `Barcode: ${p.barcode}` : null, p.hsnCode ? `HSN: ${p.hsnCode}` : null].filter(Boolean).join(" | ")}
+                      </div>
                     )}
                   </td>
-                  <td>{p.sku || "—"}</td>
                   <td>
                     <span className="badge" style={{ backgroundColor: "#f1f5f9", color: "#475569" }}>
                       {p.category}
                     </span>
                   </td>
+                  <td>{p.brand || "—"}</td>
                   <td className={styles.priceText}>
                     {currencySymbol}{Number(p.sellingPrice).toFixed(2)}
+                  </td>
+                  <td>
+                    {p.mrp ? (
+                      <span style={{ fontWeight: 600, color: p.mrp > p.sellingPrice ? "#16a34a" : "#475569" }}>
+                        {currencySymbol}{Number(p.mrp).toFixed(2)}
+                      </span>
+                    ) : (
+                      "—"
+                    )}
                   </td>
                   <td>{p.unit}</td>
                   <td>{p.taxRate}%</td>
@@ -326,14 +443,14 @@ const ProductsPage = () => {
             <button
               className="btn btn-secondary btn-sm"
               onClick={() => setIsProductModalOpen(false)}
-              disabled={formSubmitting}
+              disabled={formSubmitting || uploadingImage}
             >
               Cancel
             </button>
             <button
               className="btn btn-primary btn-sm"
               onClick={handleSaveProduct}
-              disabled={formSubmitting}
+              disabled={formSubmitting || uploadingImage}
             >
               {formSubmitting ? "Saving..." : editingProduct ? "Update Product" : "Create Product"}
             </button>
@@ -341,6 +458,71 @@ const ProductsPage = () => {
         }
       >
         <form onSubmit={handleSaveProduct}>
+          {/* Cloudinary Image Upload Section */}
+          <div className="form-group" style={{ marginBottom: "14px" }}>
+            <label className="form-label">Product Image (Optional)</label>
+            <div className={styles.imageUploadContainer}>
+              {formData.imageUrl ? (
+                <div className={styles.imagePreviewWrapper}>
+                  <img
+                    src={formData.imageUrl}
+                    alt="Product preview"
+                    className={styles.imagePreview}
+                  />
+                  <div className={styles.imageActions}>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploadingImage}
+                    >
+                      <Upload size={14} />
+                      <span>{uploadingImage ? "Uploading..." : "Replace Image"}</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      style={{ color: "var(--danger)" }}
+                      onClick={handleRemoveImage}
+                      disabled={uploadingImage}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  className={styles.uploadDropzone}
+                  onClick={() => !uploadingImage && fileInputRef.current?.click()}
+                >
+                  {uploadingImage ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <Loader size="sm" />
+                      <span>Uploading to Cloudinary...</span>
+                    </div>
+                  ) : (
+                    <>
+                      <ImageIcon size={26} color="#94a3b8" />
+                      <div>
+                        <strong style={{ fontSize: "0.85rem" }}>Click to select product image</strong>
+                        <div style={{ fontSize: "0.725rem", color: "#64748b" }}>
+                          JPG, PNG, WEBP, GIF up to 5MB (Stored in Cloudinary)
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+              <input
+                type="file"
+                ref={fileInputRef}
+                style={{ display: "none" }}
+                accept="image/*"
+                onChange={handleImageUpload}
+              />
+            </div>
+          </div>
+
           <div className={styles.formGrid2}>
             <div className="form-group">
               <label className="form-label">
@@ -358,20 +540,6 @@ const ProductsPage = () => {
             </div>
 
             <div className="form-group">
-              <label className="form-label">SKU / Item Code</label>
-              <input
-                type="text"
-                name="sku"
-                className="form-input"
-                placeholder="e.g. PRD-001 or Barcode"
-                value={formData.sku}
-                onChange={handleFormChange}
-              />
-            </div>
-          </div>
-
-          <div className={styles.formGrid2}>
-            <div className="form-group">
               <label className="form-label">Category</label>
               <select
                 name="category"
@@ -383,26 +551,6 @@ const ProductsPage = () => {
                 {categories.map((cat) => (
                   <option key={cat._id} value={cat.name}>{cat.name}</option>
                 ))}
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Unit of Measure</label>
-              <select
-                name="unit"
-                className="form-select"
-                value={formData.unit}
-                onChange={handleFormChange}
-              >
-                <option value="piece">Piece (pc)</option>
-                <option value="kg">Kilogram (kg)</option>
-                <option value="gram">Gram (g)</option>
-                <option value="litre">Litre (L)</option>
-                <option value="meter">Meter (m)</option>
-                <option value="hour">Hour (hr)</option>
-                <option value="service">Service</option>
-                <option value="box">Box</option>
-                <option value="packet">Packet</option>
               </select>
             </div>
           </div>
@@ -423,24 +571,102 @@ const ProductsPage = () => {
                 onChange={handleFormChange}
                 required
               />
+              <span style={{ fontSize: "0.725rem", color: "#64748b" }}>
+                Price charged during billing calculations.
+              </span>
             </div>
 
             <div className="form-group">
-              <label className="form-label">Purchase Price ({currencySymbol}) (Internal)</label>
+              <label className="form-label">MRP ({currencySymbol}) (Optional)</label>
               <input
                 type="number"
                 step="0.01"
                 min="0"
-                name="purchasePrice"
+                name="mrp"
                 className="form-input"
-                placeholder="Optional - hidden from invoices"
-                value={formData.purchasePrice}
+                placeholder="0.00"
+                value={formData.mrp}
+                onChange={handleFormChange}
+              />
+              <span style={{ fontSize: "0.725rem", color: "#64748b" }}>
+                Maximum Retail Price printed on packaging.
+              </span>
+            </div>
+          </div>
+
+          <div className={styles.formGrid2}>
+            <div className="form-group">
+              <label className="form-label">SKU / Item Code</label>
+              <input
+                type="text"
+                name="sku"
+                className="form-input"
+                placeholder="e.g. PRD-001"
+                value={formData.sku}
+                onChange={handleFormChange}
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Barcode / UPC</label>
+              <input
+                type="text"
+                name="barcode"
+                className="form-input"
+                placeholder="e.g. 8901234567890"
+                value={formData.barcode}
                 onChange={handleFormChange}
               />
             </div>
           </div>
 
           <div className={styles.formGrid2}>
+            <div className="form-group">
+              <label className="form-label">Brand</label>
+              <input
+                type="text"
+                name="brand"
+                className="form-input"
+                placeholder="e.g. Nike, Tata, Nestlé"
+                value={formData.brand}
+                onChange={handleFormChange}
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">HSN / SAC Code</label>
+              <input
+                type="text"
+                name="hsnCode"
+                className="form-input"
+                placeholder="e.g. 610910, 998311"
+                value={formData.hsnCode}
+                onChange={handleFormChange}
+              />
+            </div>
+          </div>
+
+          <div className={styles.formGrid2}>
+            <div className="form-group">
+              <label className="form-label">Unit of Measure</label>
+              <select
+                name="unit"
+                className="form-select"
+                value={formData.unit}
+                onChange={handleFormChange}
+              >
+                <option value="piece">Piece (pc)</option>
+                <option value="kg">Kilogram (kg)</option>
+                <option value="gram">Gram (g)</option>
+                <option value="litre">Litre (L)</option>
+                <option value="meter">Meter (m)</option>
+                <option value="hour">Hour (hr)</option>
+                <option value="service">Service</option>
+                <option value="box">Box</option>
+                <option value="packet">Packet</option>
+              </select>
+            </div>
+
             <div className="form-group">
               <label className="form-label">GST / Tax Rate (%)</label>
               <select
@@ -455,6 +681,22 @@ const ProductsPage = () => {
                 <option value={18}>18% GST</option>
                 <option value={28}>28% GST</option>
               </select>
+            </div>
+          </div>
+
+          <div className={styles.formGrid2}>
+            <div className="form-group">
+              <label className="form-label">Purchase Price ({currencySymbol}) (Internal)</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                name="purchasePrice"
+                className="form-input"
+                placeholder="Optional - hidden from invoices"
+                value={formData.purchasePrice}
+                onChange={handleFormChange}
+              />
             </div>
 
             <div className="form-group">

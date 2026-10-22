@@ -1,5 +1,5 @@
 import React from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
   ReceiptText,
@@ -17,6 +17,10 @@ import styles from "./Sidebar.module.css";
 
 const Sidebar = () => {
   const { user, business, logout } = useAuth();
+  const location = useLocation();
+
+  // Specifically collapse the sidebar on the New Bill screen
+  const isCompact = location.pathname.startsWith("/billing/new");
 
   const navLinks = [
     { to: "/billing/new", label: "New Bill", icon: ReceiptText, isSpecial: true },
@@ -30,17 +34,19 @@ const Sidebar = () => {
   ];
 
   return (
-    <aside className={styles.sidebar}>
-      <div className={styles.brand}>
+    <aside className={`${styles.sidebar} ${isCompact ? styles.sidebarCompact : ""}`}>
+      <div className={styles.brand} title={isCompact ? business?.name || "Billing Software" : undefined}>
         <div className={styles.brandIcon}>
           <Building2 size={20} />
         </div>
-        <div className={styles.brandInfo}>
-          <div className={styles.brandTitle} title={business?.name || "Billing Pro"}>
-            {business?.name || "Billing Software"}
+        {!isCompact && (
+          <div className={styles.brandInfo}>
+            <div className={styles.brandTitle} title={business?.name || "Billing Pro"}>
+              {business?.name || "Billing Software"}
+            </div>
+            <div className={styles.brandType}>{business?.type || "Retail POS"}</div>
           </div>
-          <div className={styles.brandType}>{business?.type || "Retail POS"}</div>
-        </div>
+        )}
       </div>
 
       <nav className={styles.nav}>
@@ -50,6 +56,7 @@ const Sidebar = () => {
             <NavLink
               key={link.to}
               to={link.to}
+              title={link.label}
               className={({ isActive }) =>
                 `${styles.navItem} ${isActive ? styles.navItemActive : ""} ${
                   link.isSpecial ? styles.newBillHighlight : ""
@@ -57,24 +64,33 @@ const Sidebar = () => {
               }
             >
               <Icon size={18} />
-              <span>{link.label}</span>
+              {!isCompact && <span>{link.label}</span>}
             </NavLink>
           );
         })}
       </nav>
 
       <div className={styles.footer}>
-        <div className={styles.userSummary}>
-          <div className={styles.userAvatar}>
+        {!isCompact ? (
+          <div className={styles.userSummary}>
+            <div className={styles.userAvatar}>
+              {user?.name ? user.name.charAt(0).toUpperCase() : "U"}
+            </div>
+            <div>
+              <div className={styles.userName} title={user?.name}>
+                {user?.name}
+              </div>
+              <div className={styles.userRole}>{user?.role || "Staff"}</div>
+            </div>
+          </div>
+        ) : (
+          <div
+            className={styles.userAvatar}
+            title={`${user?.name || "User"} (${user?.role || "Staff"})`}
+          >
             {user?.name ? user.name.charAt(0).toUpperCase() : "U"}
           </div>
-          <div>
-            <div className={styles.userName} title={user?.name}>
-              {user?.name}
-            </div>
-            <div className={styles.userRole}>{user?.role || "Staff"}</div>
-          </div>
-        </div>
+        )}
         <button className={styles.logoutBtn} onClick={logout} title="Sign Out">
           <LogOut size={16} />
         </button>

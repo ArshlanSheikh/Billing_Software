@@ -1,47 +1,343 @@
+/* ==========================================================================
+   Compact POS Billing Interface — Version 2 Improvements
+   Optimized for maximum viewport density, 4 items/row, and low visual waste.
+   ========================================================================== */
+
+.posContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
 .billingLayout {
   display: grid;
-  grid-template-columns: 1fr 380px;
-  gap: 20px;
+  grid-template-columns: minmax(0, 1.18fr) minmax(420px, 1fr);
+  gap: 12px;
   align-items: flex-start;
 }
 
 @media (max-width: 1024px) {
   .billingLayout {
     grid-template-columns: 1fr;
+    gap: 10px;
   }
 }
 
-.leftCol {
+/* =========================================
+   Left Column: Products Selection Catalog
+   ========================================= */
+.catalogPanel {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  box-shadow: var(--shadow-xs);
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 8px;
+}
+
+.catalogHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border-light);
+  padding-bottom: 6px;
+}
+
+.catalogTitle {
+  font-size: 0.925rem;
+  font-weight: 700;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+
+.catalogBadge {
+  font-size: 0.7rem;
+  background: var(--primary-subtle);
+  color: var(--primary);
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-weight: 700;
+}
+
+/* Compact Search Bar */
+.catalogSearchWrapper {
+  position: relative;
+  width: 100%;
+}
+
+.catalogSearchIcon {
+  position: absolute;
+  left: 9px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-subtle);
+  pointer-events: none;
+}
+
+.catalogSearchInput {
+  padding-left: 30px !important;
+  font-size: 0.8rem;
+  height: 30px;
+  border-radius: var(--radius-sm);
+}
+
+/* Compact Category Filter Pills */
+.categoryPills {
+  display: flex;
+  gap: 5px;
+  overflow-x: auto;
+  padding-bottom: 3px;
+  scrollbar-width: thin;
+}
+
+.categoryPill {
+  padding: 3px 9px;
+  border-radius: 12px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  background: #f8fafc;
+  color: #475569;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.12s;
+  line-height: 1.2;
+}
+
+.categoryPill:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.categoryPillActive {
+  background: var(--primary);
+  color: #ffffff;
+  border-color: var(--primary);
+}
+
+.categoryPillActive:hover {
+  background: var(--primary-hover);
+}
+
+/* =========================================
+   Products Grid: 4 items/row, 5-6 rows
+   ========================================= */
+.productsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  max-height: calc(100vh - 170px);
+  min-height: 480px;
+  overflow-y: auto;
+  padding: 1px;
+}
+
+@media (max-width: 1280px) and (min-width: 1025px) {
+  .productsGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .productsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.productCard {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-sm);
+  padding: 6px 7px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 5px;
+  transition: all 0.12s ease-in-out;
+  position: relative;
+  text-align: left;
+  user-select: none;
+  min-height: 82px;
+}
+
+.productCard:hover {
+  border-color: var(--primary);
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.14);
+  transform: translateY(-1px);
+}
+
+.productCard:active {
+  transform: scale(0.98);
+}
+
+.productCardTop {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.productImageThumb {
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  background: #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  flex-shrink: 0;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+}
+
+.productImageThumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.productInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.productName {
+  font-size: 0.775rem;
+  font-weight: 700;
+  color: var(--text-main);
+  line-height: 1.2;
+  margin-bottom: 1px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+
+.productMeta {
+  font-size: 0.675rem;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.productCardBottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  border-top: 1px dashed #edf2f7;
+  padding-top: 4px;
+  margin-top: 1px;
+}
+
+.priceGroup {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.sellingPrice {
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--primary);
+}
+
+.mrpPrice {
+  font-size: 0.65rem;
+  color: #94a3b8;
+  text-decoration: line-through;
+}
+
+.inCartBadge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: #10b981;
+  color: #ffffff;
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 1px 5px;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(16, 185, 129, 0.35);
+  line-height: 1.2;
+}
+
+.emptyProducts {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 30px 12px;
+  color: var(--text-muted);
+  text-align: center;
+  gap: 6px;
+}
+
+/* =========================================
+   Right Column: Invoice & Cart Panels
+   ========================================= */
+.rightCol {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .card {
   background: #ffffff;
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 18px 20px;
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
   box-shadow: var(--shadow-xs);
 }
 
-.topBarGrid {
+.compactTopBar {
   display: grid;
-  grid-template-columns: 180px 150px 150px 1fr auto;
-  gap: 14px;
+  grid-template-columns: 115px 125px 125px 1fr auto;
+  gap: 8px;
   align-items: flex-end;
 }
 
 @media (max-width: 1200px) {
-  .topBarGrid {
+  .compactTopBar {
     grid-template-columns: 1fr 1fr;
   }
+}
+
+.compactFormGroup {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.compactLabel {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin: 0;
+  white-space: nowrap;
+}
+
+.compactInput {
+  height: 29px !important;
+  padding: 3px 7px !important;
+  font-size: 0.8rem !important;
+  border-radius: var(--radius-sm);
 }
 
 .searchSection {
   position: relative;
   display: flex;
-  gap: 10px;
+  gap: 8px;
 }
 
 .searchWrapper {
@@ -51,7 +347,7 @@
 
 .searchIcon {
   position: absolute;
-  left: 12px;
+  left: 9px;
   top: 50%;
   transform: translateY(-50%);
   color: var(--text-subtle);
@@ -59,8 +355,10 @@
 }
 
 .searchInput {
-  padding-left: 38px !important;
-  font-size: 0.95rem;
+  padding-left: 30px !important;
+  font-size: 0.825rem;
+  height: 30px;
+  border-radius: var(--radius-sm);
 }
 
 .searchResultsDropdown {
@@ -72,28 +370,33 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
-  max-height: 280px;
+  max-height: 240px;
   overflow-y: auto;
   z-index: 50;
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
 .searchResultItem {
-  padding: 10px 14px;
+  padding: 6px 10px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid var(--border-light);
   cursor: pointer;
-  transition: background-color 0.15s;
+  transition: background-color 0.12s;
+  font-size: 0.8rem;
 }
 
 .searchResultItem:hover {
   background-color: var(--primary-subtle);
 }
 
+/* =========================================
+   Cart Items Table: Compact Padding
+   ========================================= */
 .itemTableContainer {
   overflow-x: auto;
+  max-height: 280px;
 }
 
 .itemsTable {
@@ -105,17 +408,21 @@
 .itemsTable th {
   background: #f8fafc;
   color: #475569;
-  font-size: 0.775rem;
+  font-size: 0.7rem;
   font-weight: 700;
   text-transform: uppercase;
-  padding: 10px 12px;
+  padding: 6px 7px;
   border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
 .itemsTable td {
-  padding: 10px 12px;
+  padding: 4px 6px;
   border-bottom: 1px solid #f1f5f9;
   vertical-align: middle;
+  font-size: 0.8rem;
 }
 
 .qtyControl {
@@ -124,17 +431,21 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: #ffffff;
+  height: 24px;
 }
 
 .qtyBtn {
   background: transparent;
   border: none;
-  padding: 4px 8px;
+  padding: 0 5px;
+  height: 100%;
   cursor: pointer;
   color: var(--text-muted);
   display: flex;
   align-items: center;
   justify-content: center;
+  font-weight: 800;
+  font-size: 0.8rem;
 }
 
 .qtyBtn:hover {
@@ -143,12 +454,13 @@
 }
 
 .qtyInput {
-  width: 50px;
+  width: 36px;
+  height: 100%;
   text-align: center;
   border: none;
-  font-weight: 600;
-  font-size: 0.875rem;
-  padding: 4px 0;
+  font-weight: 700;
+  font-size: 0.775rem;
+  padding: 0;
   -moz-appearance: textfield;
 }
 
@@ -159,11 +471,12 @@
 }
 
 .tableInput {
-  padding: 6px 8px;
+  padding: 2px 4px;
+  height: 25px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
-  font-size: 0.85rem;
-  width: 90px;
+  font-size: 0.775rem;
+  width: 70px;
   text-align: right;
 }
 
@@ -172,59 +485,71 @@
   outline: none;
 }
 
-.rightCol {
+.removeLineBtn {
+  background: transparent;
+  border: none;
+  color: var(--danger);
+  cursor: pointer;
+  padding: 3px;
   display: flex;
-  flex-direction: column;
-  gap: 16px;
-  position: sticky;
-  top: 80px;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  transition: background-color 0.12s;
 }
 
+.removeLineBtn:hover {
+  background-color: var(--danger-subtle);
+}
+
+/* =========================================
+   Summary Card & Checkout (Compact)
+   ========================================= */
 .summaryCard {
   background: #ffffff;
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 20px;
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
   box-shadow: var(--shadow-sm);
 }
 
 .summaryTitle {
-  font-size: 1.1rem;
+  font-size: 0.925rem;
   font-weight: 700;
   color: var(--text-main);
-  margin-bottom: 16px;
+  margin-bottom: 8px;
   border-bottom: 1px solid var(--border);
-  padding-bottom: 10px;
+  padding-bottom: 4px;
 }
 
 .calcRow {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 0.875rem;
+  font-size: 0.78rem;
   color: var(--text-muted);
-  margin-bottom: 10px;
+  margin-bottom: 5px;
 }
 
 .grandTotalBox {
   background: linear-gradient(135deg, #eff6ff, #dbeafe);
   border: 1px solid #bfdbfe;
-  border-radius: var(--radius-md);
-  padding: 14px 16px;
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin: 16px 0;
+  margin: 8px 0;
 }
 
 .grandTotalLabel {
-  font-size: 0.95rem;
+  font-size: 0.85rem;
   font-weight: 700;
   color: #1e40af;
 }
 
 .grandTotalAmount {
-  font-size: 1.6rem;
+  font-size: 1.35rem;
   font-weight: 900;
   color: #1e3a8a;
   letter-spacing: -0.02em;
@@ -232,24 +557,24 @@
 
 .paymentMethodsGrid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-  margin-bottom: 14px;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+  margin-bottom: 8px;
 }
 
 .payMethodBtn {
   border: 1px solid var(--border);
   background: #ffffff;
   border-radius: var(--radius-sm);
-  padding: 8px;
-  font-size: 0.775rem;
+  padding: 5px 2px;
+  font-size: 0.68rem;
   font-weight: 600;
   cursor: pointer;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  transition: all 0.15s;
+  gap: 2px;
+  transition: all 0.12s;
 }
 
 .payMethodActive {
@@ -263,10 +588,10 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 14px;
-  border-radius: var(--radius-md);
-  margin-bottom: 16px;
-  font-size: 0.875rem;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 8px;
+  font-size: 0.775rem;
   font-weight: 700;
 }
 
@@ -283,25 +608,25 @@
 .actionBtnGroup {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
 }
 
 .completeSaleBtn {
   width: 100%;
-  padding: 14px;
-  font-size: 1.05rem;
+  padding: 9px;
+  font-size: 0.925rem;
   background: linear-gradient(135deg, #10b981, #059669);
   color: #ffffff;
   border: none;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   font-weight: 800;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
-  transition: all 0.15s;
+  gap: 6px;
+  box-shadow: 0 3px 8px rgba(16, 185, 129, 0.28);
+  transition: all 0.12s;
 }
 
 .completeSaleBtn:hover {
@@ -312,21 +637,4 @@
   opacity: 0.6;
   cursor: not-allowed;
   box-shadow: none;
-}
-
-.removeLineBtn {
-  background: transparent;
-  border: none;
-  color: var(--danger);
-  cursor: pointer;
-  padding: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-sm);
-  transition: background-color 0.15s;
-}
-
-.removeLineBtn:hover {
-  background-color: var(--danger-subtle);
 }

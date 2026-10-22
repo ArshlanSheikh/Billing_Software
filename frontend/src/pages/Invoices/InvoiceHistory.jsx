@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import {
   Search,
   Eye,
+  Download,
   Printer,
   CreditCard,
   Ban,
@@ -302,9 +303,17 @@ const InvoiceHistory = () => {
                       <button
                         className={styles.actionIconBtn}
                         onClick={() => handleOpenViewModal(inv)}
-                        title="View / Print Invoice"
+                        title="View & Print Invoice"
                       >
                         <Eye size={15} />
+                      </button>
+
+                      <button
+                        className={styles.actionIconBtn}
+                        onClick={() => handleOpenViewModal(inv)}
+                        title="Download Invoice PDF"
+                      >
+                        <Download size={15} />
                       </button>
 
                       {inv.status !== "CANCELLED" && inv.balanceDue > 0 && (

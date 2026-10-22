@@ -1,8 +1,12 @@
-import React from "react";
+import React, { useRef, useState } from "react";
 import { Printer, Download, CheckCircle, Clock, AlertCircle } from "lucide-react";
+import { downloadInvoicePdf } from "../../utils/pdfGenerator";
 import styles from "./PrintableInvoice.module.css";
 
 const PrintableInvoice = ({ invoice, business, onPrint }) => {
+  const sheetRef = useRef(null);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+
   if (!invoice) return null;
 
   const handlePrint = () => {
@@ -10,6 +14,17 @@ const PrintableInvoice = ({ invoice, business, onPrint }) => {
       onPrint();
     } else {
       window.print();
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    try {
+      setIsDownloadingPdf(true);
+      await downloadInvoicePdf(sheetRef.current, invoice.invoiceNumber);
+    } catch (err) {
+      console.error("Download PDF failed:", err);
+    } finally {
+      setIsDownloadingPdf(false);
     }
   };
 
@@ -23,14 +38,23 @@ const PrintableInvoice = ({ invoice, business, onPrint }) => {
   };
 
   return (
-    <div className={styles.invoiceSheet}>
-      <div className={`${styles.topBar} ${styles.noPrint}`}>
+    <div className={styles.invoiceSheet} ref={sheetRef}>
+      <div className={`${styles.topBar} ${styles.noPrint}`} data-no-pdf="true">
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           {getStatusBadge(invoice.paymentStatus)}
           {invoice.status === "CANCELLED" && <span className="badge badge-cancelled">CANCELLED</span>}
         </div>
         <div style={{ display: "flex", gap: "10px" }}>
-          <button className="btn btn-primary btn-sm" onClick={handlePrint}>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={handleDownloadPdf}
+            disabled={isDownloadingPdf}
+          >
+            <Download size={16} />
+            <span>{isDownloadingPdf ? "Generating PDF..." : "Download PDF"}</span>
+          </button>
+          <button type="button" className="btn btn-primary btn-sm" onClick={handlePrint}>
             <Printer size={16} />
             <span>Print Invoice</span>
           </button>
@@ -39,6 +63,13 @@ const PrintableInvoice = ({ invoice, business, onPrint }) => {
 
       <div className={styles.headerGrid}>
         <div className={styles.businessInfo}>
+          {business?.logo && (
+            <img
+              src={business.logo}
+              alt={business?.name || "Business Logo"}
+              style={{ maxHeight: "55px", marginBottom: "8px", objectFit: "contain", display: "block" }}
+            />
+          )}
           <h1>{business?.name || "Store"}</h1>
           <div className={styles.businessMeta}>
             {business?.address?.street && <div>{business.address.street}</div>}
@@ -95,7 +126,13 @@ const PrintableInvoice = ({ invoice, business, onPrint }) => {
                 <td className={styles.textCenter}>{index + 1}</td>
                 <td>
                   <strong>{item.name}</strong>
-                  {item.sku && <div style={{ fontSize: "0.75rem", color: "#64748b" }}>SKU: {item.sku}</div>}
+                  <div style={{ fontSize: "0.75rem", color: "#64748b" }}>
+                    {[
+                      item.sku ? `SKU: ${item.sku}` : null,
+                      item.hsnCode ? `HSN: ${item.hsnCode}` : null,
+                      item.mrp && item.mrp > item.unitPrice ? `MRP: ${currencySymbol}${Number(item.mrp).toFixed(2)}` : null,
+                    ].filter(Boolean).join(" | ")}
+                  </div>
                 </td>
                 <td className={styles.textCenter}>
                   {item.quantity} {item.unit}

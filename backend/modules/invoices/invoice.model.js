@@ -17,6 +17,20 @@ const invoiceItemSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
+    barcode: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    hsnCode: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    mrp: {
+      type: Number,
+      default: 0,
+    },
     unit: {
       type: String,
       default: "piece",

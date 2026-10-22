@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   Search,
   Plus,
@@ -13,12 +13,17 @@ import {
   Printer,
   RotateCcw,
   PlusCircle,
+  Package,
+  Download,
+  ShoppingBag,
 } from "lucide-react";
 import api from "../../services/api";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import Modal from "../../components/common/Modal/Modal";
 import PrintableInvoice from "../../components/invoices/PrintableInvoice";
+import { downloadInvoicePdf } from "../../utils/pdfGenerator";
+import Loader from "../../components/common/Loader/Loader";
 import styles from "./NewBill.module.css";
 
 const round = (num) => Math.round((Number(num) + Number.EPSILON) * 100) / 100;
@@ -35,7 +40,14 @@ const NewBill = () => {
   const [customers, setCustomers] = useState([]);
   const [notes, setNotes] = useState("");
 
-  // Product Search & Items
+  // Product Catalog Panel (Left side)
+  const [allProducts, setAllProducts] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [catalogLoading, setCatalogLoading] = useState(true);
+  const [catalogSearch, setCatalogSearch] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("All");
+
+  // Quick Autocomplete Product Search & Cart Items
   const [productSearch, setProductSearch] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -59,8 +71,10 @@ const NewBill = () => {
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [completedInvoice, setCompletedInvoice] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
 
   const searchRef = useRef(null);
+  const modalInvoiceRef = useRef(null);
 
   // Fetch Next Invoice Number
   const fetchNextInvoiceNumber = useCallback(async () => {
@@ -86,12 +100,61 @@ const NewBill = () => {
     }
   }, []);
 
+  // Fetch All Active Products & Categories for Left Panel
+  const fetchCatalogData = useCallback(async () => {
+    try {
+      setCatalogLoading(true);
+      const [productsRes, categoriesRes] = await Promise.all([
+        api.get("/products"),
+        api.get("/categories"),
+      ]);
+
+      if (productsRes.success) {
+        const activeProds = (productsRes.data?.products || []).filter(
+          (p) => p.isActive !== false
+        );
+        setAllProducts(activeProds);
+      }
+      if (categoriesRes.success) {
+        setCategories(categoriesRes.data?.categories || []);
+      }
+    } catch (err) {
+      console.error("Failed to load product catalog:", err);
+      showToast("Failed to load product catalog", "error");
+    } finally {
+      setCatalogLoading(false);
+    }
+  }, [showToast]);
+
   useEffect(() => {
     fetchNextInvoiceNumber();
     fetchCustomers();
-  }, [fetchNextInvoiceNumber, fetchCustomers]);
+    fetchCatalogData();
+  }, [fetchNextInvoiceNumber, fetchCustomers, fetchCatalogData]);
 
-  // Product Live Search
+  // Filter Catalog Products based on search and category pill
+  const filteredProducts = useMemo(() => {
+    return allProducts.filter((product) => {
+      const matchesCategory =
+        selectedCategory === "All" ||
+        (product.category &&
+          product.category.toLowerCase() === selectedCategory.toLowerCase());
+
+      if (!matchesCategory) return false;
+
+      if (!catalogSearch.trim()) return true;
+
+      const q = catalogSearch.toLowerCase().trim();
+      const matchName = product.name?.toLowerCase().includes(q);
+      const matchSku = product.sku?.toLowerCase().includes(q);
+      const matchBarcode = product.barcode?.toLowerCase().includes(q);
+      const matchBrand = product.brand?.toLowerCase().includes(q);
+
+      return matchName || matchSku || matchBarcode || matchBrand;
+    });
+  }, [allProducts, selectedCategory, catalogSearch]);
+
+  // Product Autocomplete Live Search
   useEffect(() => {
     if (!productSearch.trim()) {
       setSearchResults([]);
@@ -116,13 +179,13 @@ const NewBill = () => {
     return () => clearTimeout(timer);
   }, [productSearch]);
 
-  // Add Product to Table
+  // Add Product to Cart or Increment Quantity
   const handleSelectProduct = (product) => {
     const existingIndex = items.findIndex((i) => i.productId === product._id);
 
     if (existingIndex >= 0) {
       const updated = [...items];
-      updated[existingIndex].quantity += 1;
+      updated[existingIndex].quantity = Number(updated[existingIndex].quantity) + 1;
       setItems(updated);
     } else {
       setItems([
@@ -131,6 +194,9 @@ const NewBill = () => {
           productId: product._id,
           name: product.name,
           sku: product.sku || "",
+          mrp: product.mrp !== undefined && product.mrp !== null ? product.mrp : null,
+          barcode: product.barcode || "",
+          hsnCode: product.hsnCode || "",
           unit: product.unit || "piece",
           quantity: 1,
           unitPrice: product.sellingPrice,
@@ -152,6 +218,9 @@ const NewBill = () => {
         productId: null,
         name: "Custom Service / Item",
         sku: "",
+        mrp: null,
+        barcode: "",
+        hsnCode: "",
         unit: "piece",
         quantity: 1,
         unitPrice: 0,
@@ -161,14 +230,14 @@ const NewBill = () => {
     ]);
   };
 
-  // Update Item in Table
+  // Update Item in Cart Table
   const handleUpdateItem = (index, field, value) => {
     const updated = [...items];
     updated[index][field] = value;
     setItems(updated);
   };
 
-  // Remove Item
+  // Remove Item from Cart
   const handleRemoveItem = (index) => {
     setItems(items.filter((_, i) => i !== index));
   };
@@ -214,10 +283,6 @@ const NewBill = () => {
   const balanceDue = Math.max(0, round(grandTotal - receivedNum));
   const changeToReturn = receivedNum > grandTotal ? round(receivedNum - grandTotal) : 0;
 
-  let paymentStatus = "UNPAID";
-  if (receivedNum >= grandTotal && grandTotal > 0) paymentStatus = "PAID";
-  else if (receivedNum > 0) paymentStatus = "PARTIALLY_PAID";
-
   // Quick Add Customer Handler
   const handleQuickAddCustomer = async (e) => {
     e.preventDefault();
@@ -259,6 +324,9 @@ const NewBill = () => {
           productId: i.productId,
           name: i.name,
           sku: i.sku,
+          mrp: i.mrp !== undefined && i.mrp !== null ? Number(i.mrp) : undefined,
+          barcode: i.barcode || "",
+          hsnCode: i.hsnCode || "",
           unit: i.unit,
           quantity: Number(i.quantity),
           unitPrice: Number(i.unitPrice),
@@ -308,51 +376,190 @@ const NewBill = () => {
     fetchNextInvoiceNumber();
   };
 
+  const handleDownloadCompletedPdf = async () => {
+    if (!completedInvoice) return;
+    try {
+      setIsDownloadingPdf(true);
+      const element = document.getElementById("completed-invoice-container");
+      if (element) {
+        await downloadInvoicePdf(element, completedInvoice.invoiceNumber);
+      }
+    } catch (err) {
+      console.error("PDF download error:", err);
+      showToast("Failed to download PDF", "error");
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
+
   const currencySymbol = business?.currency?.symbol || "₹";
 
   return (
-    <div>
+    <div className={styles.posContainer}>
       <div className={styles.billingLayout}>
-        {/* Left Column: Top Bar, Product Search & Items Table */}
-        <div className={styles.leftCol}>
+        {/* Left Column: Product Selection Panel */}
+        <div className={styles.catalogPanel}>
+          <div className={styles.catalogHeader}>
+            <h2 className={styles.catalogTitle}>
+              <ShoppingBag size={20} color="var(--primary)" />
+              <span>Products Catalog</span>
+            </h2>
+            <span className={styles.catalogBadge}>
+              {filteredProducts.length} items
+            </span>
+          </div>
+
+          {/* Search bar inside Catalog */}
+          <div className={styles.catalogSearchWrapper}>
+            <Search size={16} className={styles.catalogSearchIcon} />
+            <input
+              type="text"
+              className={`form-input ${styles.catalogSearchInput}`}
+              placeholder="Filter by product name, SKU, or barcode..."
+              value={catalogSearch}
+              onChange={(e) => setCatalogSearch(e.target.value)}
+            />
+          </div>
+
+          {/* Category Filter Pills */}
+          <div className={styles.categoryPills}>
+            <button
+              type="button"
+              className={`${styles.categoryPill} ${
+                selectedCategory === "All" ? styles.categoryPillActive : ""
+              }`}
+              onClick={() => setSelectedCategory("All")}
+            >
+              All
+            </button>
+            {categories.map((cat) => (
+              <button
+                key={cat._id}
+                type="button"
+                className={`${styles.categoryPill} ${
+                  selectedCategory === cat.name ? styles.categoryPillActive : ""
+                }`}
+                onClick={() => setSelectedCategory(cat.name)}
+              >
+                {cat.name}
+              </button>
+            ))}
+          </div>
+
+          {/* Products Grid */}
+          <div className={styles.productsGrid}>
+            {catalogLoading ? (
+              <div className={styles.emptyProducts}>
+                <Loader message="Loading products..." />
+              </div>
+            ) : filteredProducts.length === 0 ? (
+              <div className={styles.emptyProducts}>
+                <Package size={36} color="#94a3b8" />
+                <p style={{ margin: 0, fontWeight: 600 }}>No products found</p>
+                <span style={{ fontSize: "0.8rem" }}>
+                  Try adjusting search or category filter
+                </span>
+              </div>
+            ) : (
+              filteredProducts.map((p) => {
+                const inCart = items.find((i) => i.productId === p._id);
+                return (
+                  <div
+                    key={p._id}
+                    className={styles.productCard}
+                    onClick={() => handleSelectProduct(p)}
+                    title={`Click to add ${p.name} to bill`}
+                  >
+                    {inCart && (
+                      <span className={styles.inCartBadge}>
+                        x{inCart.quantity}
+                      </span>
+                    )}
+
+                    <div className={styles.productCardTop}>
+                      <div className={styles.productImageThumb}>
+                        {p.imageUrl ? (
+                          <img src={p.imageUrl} alt={p.name} />
+                        ) : (
+                          <Package size={20} />
+                        )}
+                      </div>
+                      <div className={styles.productInfo}>
+                        <div className={styles.productName}>{p.name}</div>
+                        <div className={styles.productMeta}>
+                          {p.sku ? `SKU: ${p.sku}` : p.category || "General"}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className={styles.productCardBottom}>
+                      <div className={styles.priceGroup}>
+                        <span className={styles.sellingPrice}>
+                          {currencySymbol}{Number(p.sellingPrice).toFixed(2)}
+                        </span>
+                        {p.mrp && Number(p.mrp) > Number(p.sellingPrice) && (
+                          <span className={styles.mrpPrice}>
+                            MRP: {currencySymbol}{Number(p.mrp).toFixed(2)}
+                          </span>
+                        )}
+                      </div>
+                      <span style={{ fontSize: "0.75rem", color: "#64748b" }}>
+                        /{p.unit || "pc"}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        {/* Right Column: Invoice / Cart Details & Calculations */}
+        <div className={styles.rightCol}>
           {/* Top Bar: Invoice metadata & Customer selection */}
-          <div className={styles.card}>
-            <div className={styles.topBarGrid}>
-              <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Invoice #</label>
+          <div className={styles.card} style={{ padding: "8px 10px" }}>
+            <div className={styles.compactTopBar}>
+              <div className={styles.compactFormGroup}>
+                <label className={styles.compactLabel}>Invoice #</label>
                 <input
                   type="text"
-                  className="form-input"
+                  className={`form-input ${styles.compactInput}`}
                   value={invoiceNumber}
-                  onChange={(e) => setInvoiceNumber(e.target.value)}
-                  style={{ fontWeight: 700, fontFamily: "var(--font-mono)" }}
+                  readOnly
+                  title="Auto-generated sequential invoice number"
+                  style={{
+                    fontWeight: 700,
+                    fontFamily: "var(--font-mono)",
+                    backgroundColor: "#f8fafc",
+                    color: "var(--primary)",
+                  }}
                 />
               </div>
 
-              <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Date</label>
+              <div className={styles.compactFormGroup}>
+                <label className={styles.compactLabel}>Date</label>
                 <input
                   type="date"
-                  className="form-input"
+                  className={`form-input ${styles.compactInput}`}
                   value={invoiceDate}
                   onChange={(e) => setInvoiceDate(e.target.value)}
                 />
               </div>
 
-              <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Due Date</label>
+              <div className={styles.compactFormGroup}>
+                <label className={styles.compactLabel}>Due Date</label>
                 <input
                   type="date"
-                  className="form-input"
+                  className={`form-input ${styles.compactInput}`}
                   value={dueDate}
                   onChange={(e) => setDueDate(e.target.value)}
                 />
               </div>
 
-              <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Customer</label>
+              <div className={styles.compactFormGroup}>
+                <label className={styles.compactLabel}>Customer</label>
                 <select
-                  className="form-select"
+                  className={`form-select ${styles.compactInput}`}
                   value={selectedCustomerId}
                   onChange={(e) => setSelectedCustomerId(e.target.value)}
                 >
@@ -370,25 +577,24 @@ const NewBill = () => {
                 className="btn btn-secondary btn-sm"
                 onClick={() => setIsCustomerModalOpen(true)}
                 title="Quick Add Customer"
-                style={{ height: "38px" }}
+                style={{ height: "29px", padding: "0 8px" }}
               >
-                <UserPlus size={16} />
+                <UserPlus size={15} />
               </button>
             </div>
           </div>
 
-          {/* Product Search & Custom Item */}
-          <div className={styles.card}>
+          {/* Quick Search & Custom Item */}
+          <div className={styles.card} style={{ padding: "6px 10px" }}>
             <div className={styles.searchSection}>
               <div className={styles.searchWrapper} ref={searchRef}>
-                <Search size={18} className={styles.searchIcon} />
+                <Search size={16} className={styles.searchIcon} />
                 <input
                   type="text"
                   className={`form-input ${styles.searchInput}`}
-                  placeholder="Scan barcode or type product name / SKU to add..."
+                  placeholder="Scan barcode or type SKU / name to add directly..."
                   value={productSearch}
                   onChange={(e) => setProductSearch(e.target.value)}
-                  autoFocus
                 />
 
                 {/* Autocomplete Dropdown */}
@@ -402,7 +608,7 @@ const NewBill = () => {
                       >
                         <div>
                           <strong>{p.name}</strong>
-                          <div style={{ fontSize: "0.75rem", color: "#64748b" }}>
+                          <div style={{ fontSize: "0.72rem", color: "#64748b" }}>
                             SKU: {p.sku || "N/A"} | Category: {p.category} | Tax: {p.taxRate}%
                           </div>
                         </div>
@@ -410,7 +616,7 @@ const NewBill = () => {
                           <strong style={{ color: "#2563eb" }}>
                             {currencySymbol}{Number(p.sellingPrice).toFixed(2)}
                           </strong>
-                          <div style={{ fontSize: "0.75rem", color: "#64748b" }}>per {p.unit}</div>
+                          <div style={{ fontSize: "0.7rem", color: "#64748b" }}>per {p.unit}</div>
                         </div>
                       </div>
                     ))}
@@ -420,11 +626,12 @@ const NewBill = () => {
 
               <button
                 type="button"
-                className="btn btn-secondary"
+                className="btn btn-secondary btn-sm"
                 onClick={handleAddCustomItem}
                 title="Add Custom Line Item"
+                style={{ height: "30px", padding: "0 10px", fontSize: "0.78rem", whiteSpace: "nowrap" }}
               >
-                <PlusCircle size={16} />
+                <PlusCircle size={15} />
                 <span>Custom Item</span>
               </button>
             </div>
@@ -436,42 +643,44 @@ const NewBill = () => {
               <table className={styles.itemsTable}>
                 <thead>
                   <tr>
-                    <th style={{ width: "36px" }}>#</th>
-                    <th>Product & SKU</th>
-                    <th style={{ width: "130px" }}>Qty & Unit</th>
-                    <th style={{ width: "110px", textAlign: "right" }}>Price ({currencySymbol})</th>
-                    <th style={{ width: "90px", textAlign: "right" }}>Disc %</th>
-                    <th style={{ width: "90px", textAlign: "right" }}>Tax %</th>
-                    <th style={{ width: "120px", textAlign: "right" }}>Total ({currencySymbol})</th>
-                    <th style={{ width: "40px" }}></th>
+                    <th style={{ width: "28px" }}>#</th>
+                    <th>Product & Details</th>
+                    <th style={{ width: "115px" }}>Qty & Unit</th>
+                    <th style={{ width: "85px", textAlign: "right" }}>Price ({currencySymbol})</th>
+                    <th style={{ width: "65px", textAlign: "right" }}>Disc %</th>
+                    <th style={{ width: "65px", textAlign: "right" }}>Tax %</th>
+                    <th style={{ width: "95px", textAlign: "right" }}>Total ({currencySymbol})</th>
+                    <th style={{ width: "30px" }}></th>
                   </tr>
                 </thead>
                 <tbody>
                   {calculatedItems.length === 0 ? (
                     <tr>
-                      <td colSpan="8" style={{ textAlign: "center", padding: "40px 16px", color: "#94a3b8" }}>
-                        <Receipt size={36} style={{ marginBottom: "8px" }} />
-                        <p style={{ margin: 0, fontWeight: 500 }}>No items in the bill yet.</p>
-                        <span style={{ fontSize: "0.8rem" }}>Search products above or click "Custom Item" to start billing.</span>
+                      <td colSpan="8" style={{ textAlign: "center", padding: "28px 12px", color: "#94a3b8" }}>
+                        <Receipt size={28} style={{ marginBottom: "4px" }} />
+                        <p style={{ margin: 0, fontWeight: 600, fontSize: "0.85rem" }}>Cart is empty</p>
+                        <span style={{ fontSize: "0.75rem" }}>
+                          Click products on the left or scan barcode to start billing.
+                        </span>
                       </td>
                     </tr>
                   ) : (
                     calculatedItems.map((item, index) => (
                       <tr key={index}>
-                        <td style={{ color: "#64748b", fontSize: "0.8rem", textAlign: "center" }}>
+                        <td style={{ color: "#64748b", fontSize: "0.75rem", textAlign: "center" }}>
                           {index + 1}
                         </td>
                         <td>
                           <input
                             type="text"
                             className="form-input"
-                            style={{ padding: "4px 8px", fontSize: "0.85rem", fontWeight: 600 }}
+                            style={{ padding: "2px 5px", fontSize: "0.8rem", fontWeight: 600, height: "25px" }}
                             value={item.name}
                             onChange={(e) => handleUpdateItem(index, "name", e.target.value)}
                           />
-                          {item.sku && (
-                            <span style={{ fontSize: "0.725rem", color: "#64748b", marginLeft: "4px" }}>
-                              SKU: {item.sku}
+                          {(item.sku || item.hsnCode) && (
+                            <span style={{ fontSize: "0.68rem", color: "#64748b", marginLeft: "4px" }}>
+                              {[item.sku ? `SKU: ${item.sku}` : null, item.hsnCode ? `HSN: ${item.hsnCode}` : null].filter(Boolean).join(" | ")}
                             </span>
                           )}
                         </td>
@@ -501,7 +710,7 @@ const NewBill = () => {
                             >
                               +
                             </button>
-                            <span style={{ fontSize: "0.75rem", color: "#64748b", padding: "0 6px" }}>
+                            <span style={{ fontSize: "0.7rem", color: "#64748b", padding: "0 3px" }}>
                               {item.unit}
                             </span>
                           </div>
@@ -523,7 +732,7 @@ const NewBill = () => {
                             max="100"
                             step="1"
                             className={styles.tableInput}
-                            style={{ width: "70px" }}
+                            style={{ width: "55px" }}
                             value={item.discountRate}
                             onChange={(e) => handleUpdateItem(index, "discountRate", e.target.value)}
                           />
@@ -535,12 +744,12 @@ const NewBill = () => {
                             max="100"
                             step="0.5"
                             className={styles.tableInput}
-                            style={{ width: "70px" }}
+                            style={{ width: "55px" }}
                             value={item.taxRate}
                             onChange={(e) => handleUpdateItem(index, "taxRate", e.target.value)}
                           />
                         </td>
-                        <td style={{ textAlign: "right", fontWeight: 700 }}>
+                        <td style={{ textAlign: "right", fontWeight: 700, fontSize: "0.825rem" }}>
                           {currencySymbol}{item.lineTotal.toFixed(2)}
                         </td>
                         <td>
@@ -550,7 +759,7 @@ const NewBill = () => {
                             onClick={() => handleRemoveItem(index)}
                             title="Remove line item"
                           >
-                            <Trash2 size={15} />
+                            <Trash2 size={14} />
                           </button>
                         </td>
                       </tr>
@@ -562,24 +771,21 @@ const NewBill = () => {
           </div>
 
           {/* Notes Input */}
-          <div className={styles.card}>
-            <div className="form-group" style={{ margin: 0 }}>
-              <label className="form-label">Invoice Notes / Special Instructions</label>
+          <div className={styles.card} style={{ padding: "6px 10px" }}>
+            <div className={styles.compactFormGroup}>
               <input
                 type="text"
-                className="form-input"
+                className={`form-input ${styles.compactInput}`}
                 placeholder="Optional notes printed on invoice..."
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
               />
             </div>
           </div>
-        </div>
 
-        {/* Right Column: Calculations & Payment Settlement */}
-        <div className={styles.rightCol}>
+          {/* Bill Summary & Payment Settlement */}
           <div className={styles.summaryCard}>
-            <h3 className={styles.summaryTitle}>Bill Summary</h3>
+            <h3 className={styles.summaryTitle}>Bill Summary & Payment</h3>
 
             <div className={styles.calcRow}>
               <span>Items Subtotal:</span>
@@ -594,14 +800,14 @@ const NewBill = () => {
             )}
 
             {/* Special Invoice Discount */}
-            <div style={{ margin: "10px 0" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px" }}>
-                <span style={{ fontSize: "0.825rem", color: "#475569", fontWeight: 600 }}>Invoice Discount:</span>
-                <div style={{ display: "flex", gap: "4px" }}>
+            <div style={{ margin: "5px 0" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "3px" }}>
+                <span style={{ fontSize: "0.75rem", color: "#475569", fontWeight: 600 }}>Invoice Discount:</span>
+                <div style={{ display: "flex", gap: "3px" }}>
                   <button
                     type="button"
                     className={`btn btn-sm ${invoiceDiscountType === "FIXED" ? "btn-primary" : "btn-secondary"}`}
-                    style={{ padding: "2px 8px", fontSize: "0.725rem" }}
+                    style={{ padding: "1px 6px", fontSize: "0.68rem", height: "20px" }}
                     onClick={() => setInvoiceDiscountType("FIXED")}
                   >
                     {currencySymbol} Flat
@@ -609,7 +815,7 @@ const NewBill = () => {
                   <button
                     type="button"
                     className={`btn btn-sm ${invoiceDiscountType === "PERCENTAGE" ? "btn-primary" : "btn-secondary"}`}
-                    style={{ padding: "2px 8px", fontSize: "0.725rem" }}
+                    style={{ padding: "1px 6px", fontSize: "0.68rem", height: "20px" }}
                     onClick={() => setInvoiceDiscountType("PERCENTAGE")}
                   >
                     %
@@ -620,7 +826,7 @@ const NewBill = () => {
                 type="number"
                 min="0"
                 step="any"
-                className="form-input"
+                className={`form-input ${styles.compactInput}`}
                 placeholder={invoiceDiscountType === "FIXED" ? "0.00" : "0%"}
                 value={invoiceDiscountValue}
                 onChange={(e) => setInvoiceDiscountValue(e.target.value)}
@@ -641,14 +847,13 @@ const NewBill = () => {
             </div>
 
             {/* Payment Method Selector */}
-            <div style={{ marginBottom: "12px" }}>
-              <label className="form-label">Payment Mode</label>
+            <div style={{ marginBottom: "8px" }}>
               <div className={styles.paymentMethodsGrid}>
                 {[
                   { id: "CASH", label: "Cash", icon: Banknote },
                   { id: "UPI", label: "UPI", icon: QrCode },
                   { id: "CARD", label: "Card", icon: CreditCard },
-                  { id: "BANK_TRANSFER", label: "NetBanking", icon: Building },
+                  { id: "BANK_TRANSFER", label: "NetBank", icon: Building },
                   { id: "OTHER", label: "Other", icon: Receipt },
                 ].map((m) => {
                   const Icon = m.icon;
@@ -661,7 +866,7 @@ const NewBill = () => {
                       }`}
                       onClick={() => setPaymentMethod(m.id)}
                     >
-                      <Icon size={16} />
+                      <Icon size={14} />
                       <span>{m.label}</span>
                     </button>
                   );
@@ -670,14 +875,14 @@ const NewBill = () => {
             </div>
 
             {/* Amount Received & Quick Buttons */}
-            <div className="form-group" style={{ marginBottom: "12px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <label className="form-label">Amount Received ({currencySymbol})</label>
-                <div style={{ display: "flex", gap: "4px" }}>
+            <div style={{ marginBottom: "8px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "3px" }}>
+                <span className={styles.compactLabel}>Amount Received ({currencySymbol})</span>
+                <div style={{ display: "flex", gap: "3px" }}>
                   <button
                     type="button"
                     className="btn btn-secondary btn-sm"
-                    style={{ padding: "2px 6px", fontSize: "0.7rem" }}
+                    style={{ padding: "1px 5px", fontSize: "0.68rem", height: "20px" }}
                     onClick={() => setAmountReceived(grandTotal)}
                   >
                     Full
@@ -685,7 +890,7 @@ const NewBill = () => {
                   <button
                     type="button"
                     className="btn btn-secondary btn-sm"
-                    style={{ padding: "2px 6px", fontSize: "0.7rem" }}
+                    style={{ padding: "1px 5px", fontSize: "0.68rem", height: "20px" }}
                     onClick={() => setAmountReceived(Math.ceil(grandTotal))}
                   >
                     Round
@@ -693,7 +898,7 @@ const NewBill = () => {
                   <button
                     type="button"
                     className="btn btn-secondary btn-sm"
-                    style={{ padding: "2px 6px", fontSize: "0.7rem" }}
+                    style={{ padding: "1px 5px", fontSize: "0.68rem", height: "20px" }}
                     onClick={() => setAmountReceived("0")}
                   >
                     Credit (₹0)
@@ -704,7 +909,7 @@ const NewBill = () => {
                 type="number"
                 min="0"
                 step="0.01"
-                className="form-input"
+                className={`form-input ${styles.compactInput}`}
                 placeholder="0.00"
                 value={amountReceived}
                 onChange={(e) => setAmountReceived(e.target.value)}
@@ -713,11 +918,10 @@ const NewBill = () => {
 
             {/* Reference Number */}
             {paymentMethod !== "CASH" && (
-              <div className="form-group" style={{ marginBottom: "12px" }}>
-                <label className="form-label">Transaction / Ref Number</label>
+              <div style={{ marginBottom: "8px" }}>
                 <input
                   type="text"
-                  className="form-input"
+                  className={`form-input ${styles.compactInput}`}
                   placeholder="UPI Ref ID, Card Auth Code..."
                   value={referenceNumber}
                   onChange={(e) => setReferenceNumber(e.target.value)}
@@ -737,7 +941,7 @@ const NewBill = () => {
                   balanceDue > 0 ? styles.balanceDue : styles.balancePaid
                 }`}
               >
-                <span>{balanceDue > 0 ? "Balance Outstanding:" : "Payment Status:"}</span>
+                <span>{balanceDue > 0 ? "Balance Due:" : "Status:"}</span>
                 <span>
                   {balanceDue > 0 ? `${currencySymbol}${balanceDue.toFixed(2)}` : "Fully Paid"}
                 </span>
@@ -752,29 +956,29 @@ const NewBill = () => {
                 disabled={submitting || items.length === 0}
                 onClick={() => handleCompleteSale(false)}
               >
-                <CheckCircle2 size={18} />
+                <CheckCircle2 size={16} />
                 <span>{submitting ? "Processing..." : "Complete Sale"}</span>
               </button>
 
               <button
                 type="button"
                 className="btn btn-primary"
-                style={{ width: "100%", padding: "10px" }}
+                style={{ width: "100%", padding: "7px 10px", fontSize: "0.825rem", height: "33px" }}
                 disabled={submitting || items.length === 0}
                 onClick={() => handleCompleteSale(true)}
               >
-                <Printer size={16} />
+                <Printer size={15} />
                 <span>Complete Sale & Print</span>
               </button>
 
               <button
                 type="button"
                 className="btn btn-secondary"
-                style={{ width: "100%", padding: "8px" }}
+                style={{ width: "100%", padding: "5px 10px", fontSize: "0.775rem", height: "29px" }}
                 onClick={handleStartNewBill}
                 disabled={submitting}
               >
-                <RotateCcw size={15} />
+                <RotateCcw size={14} />
                 <span>Reset Bill</span>
               </button>
             </div>
@@ -844,7 +1048,7 @@ const NewBill = () => {
         </form>
       </Modal>
 
-      {/* Post-Sale Success & Print Modal */}
+      {/* Post-Sale Success & Print / Download PDF Modal */}
       <Modal
         isOpen={isSuccessModalOpen}
         onClose={handleStartNewBill}
@@ -852,21 +1056,32 @@ const NewBill = () => {
         size="lg"
         footer={
           <>
-            <button className="btn btn-secondary btn-sm" onClick={() => window.print()}>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={handleDownloadCompletedPdf}
+              disabled={isDownloadingPdf}
+            >
+              <Download size={16} />
+              <span>{isDownloadingPdf ? "Exporting PDF..." : "Download PDF"}</span>
+            </button>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => window.print()}>
               <Printer size={16} /> Print Receipt
             </button>
-            <button className="btn btn-primary btn-sm" onClick={handleStartNewBill}>
+            <button type="button" className="btn btn-primary btn-sm" onClick={handleStartNewBill}>
               <PlusCircle size={16} /> Start New Bill
             </button>
           </>
         }
       >
         {completedInvoice && (
-          <PrintableInvoice
-            invoice={completedInvoice}
-            business={business}
-            onPrint={() => window.print()}
-          />
+          <div id="completed-invoice-container" ref={modalInvoiceRef}>
+            <PrintableInvoice
+              invoice={completedInvoice}
+              business={business}
+              onPrint={() => window.print()}
+            />
+          </div>
         )}
       </Modal>
     </div>

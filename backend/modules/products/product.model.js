@@ -18,6 +18,21 @@ const productSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
+    barcode: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    brand: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    hsnCode: {
+      type: String,
+      trim: true,
+      default: "",
+    },
     description: {
       type: String,
       trim: true,
@@ -32,6 +47,11 @@ const productSchema = new mongoose.Schema(
       type: Number,
       required: [true, "Selling price is required"],
       min: [0, "Selling price cannot be negative"],
+    },
+    mrp: {
+      type: Number,
+      default: 0,
+      min: [0, "MRP cannot be negative"],
     },
     purchasePrice: {
       type: Number,
@@ -52,6 +72,10 @@ const productSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    imagePublicId: {
+      type: String,
+      default: "",
+    },
     isActive: {
       type: Boolean,
       default: true,
@@ -60,6 +84,6 @@ const productSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-productSchema.index({ businessId: 1, name: "text", sku: "text" });
+productSchema.index({ businessId: 1, name: "text", sku: "text", barcode: "text", brand: "text" });
 
 export const Product = mongoose.model("Product", productSchema);

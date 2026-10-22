@@ -11,9 +11,16 @@ export const GetNextInvoiceNumberController = async (req, res) => {
     const currentNum = business?.invoiceSettings?.currentNumber || 0;
     const startNum = business?.invoiceSettings?.startingNumber || 1;
 
-    const nextCount = Math.max(startNum, currentNum + 1);
-    const padded = String(nextCount).padStart(4, "0");
-    const nextInvoiceNumber = `${prefix}${padded}`;
+    let nextCount = Math.max(startNum, currentNum + 1);
+    let nextInvoiceNumber = `${prefix}${String(nextCount).padStart(4, "0")}`;
+
+    // Verify if this number exists anywhere in historical invoices (e.g. from prior cancellations or manual entries)
+    let existing = await Invoice.findOne({ businessId: req.businessId, invoiceNumber: nextInvoiceNumber });
+    while (existing) {
+      nextCount++;
+      nextInvoiceNumber = `${prefix}${String(nextCount).padStart(4, "0")}`;
+      existing = await Invoice.findOne({ businessId: req.businessId, invoiceNumber: nextInvoiceNumber });
+    }
 
     return res.status(200).json({
       success: true,
@@ -36,7 +43,6 @@ export const CreateInvoiceController = async (req, res) => {
   try {
     const comingData = req.body;
     const {
-      invoiceNumber,
       invoiceDate,
       dueDate,
       customerId,
@@ -71,29 +77,42 @@ export const CreateInvoiceController = async (req, res) => {
       grandTotal,
     } = calculated;
 
-    // Check duplicate invoice number
-    let finalInvoiceNumber = invoiceNumber ? invoiceNumber.trim() : "";
-    if (!finalInvoiceNumber) {
-      const business = await Business.findById(req.businessId);
-      const prefix = business?.invoiceSettings?.prefix || "INV-";
-      const currentNum = business?.invoiceSettings?.currentNumber || 0;
-      const startNum = business?.invoiceSettings?.startingNumber || 1;
-      const nextCount = Math.max(startNum, currentNum + 1);
-      finalInvoiceNumber = `${prefix}${String(nextCount).padStart(4, "0")}`;
+    // Atomically reserve next sequence number to ensure concurrent safety and prevent duplicate invoice numbers
+    const business = await Business.findById(req.businessId);
+    const prefix = business?.invoiceSettings?.prefix || "INV-";
+    const startNum = business?.invoiceSettings?.startingNumber || 1;
+
+    let updatedBusiness = await Business.findOneAndUpdate(
+      {
+        _id: req.businessId,
+        "invoiceSettings.currentNumber": { $gte: startNum - 1 },
+      },
+      { $inc: { "invoiceSettings.currentNumber": 1 } },
+      { new: true }
+    );
+
+    if (!updatedBusiness) {
+      updatedBusiness = await Business.findOneAndUpdate(
+        { _id: req.businessId },
+        { $set: { "invoiceSettings.currentNumber": startNum } },
+        { new: true }
+      );
     }
 
-    const existing = await Invoice.findOne({
-      businessId: req.businessId,
-      invoiceNumber: finalInvoiceNumber,
-    });
+    let reservedSequence = updatedBusiness.invoiceSettings.currentNumber;
+    let finalInvoiceNumber = `${prefix}${String(reservedSequence).padStart(4, "0")}`;
 
-    if (existing) {
-      return res.status(409).json({
-        success: false,
-        message: `Invoice number ${finalInvoiceNumber} is already in use. Please use a unique number.`,
-        data: null,
-        error: "DUPLICATE_INVOICE_NUMBER",
-      });
+    // Guarantee that this invoice number has never been used by any invoice (including cancelled ones)
+    let duplicate = await Invoice.findOne({ businessId: req.businessId, invoiceNumber: finalInvoiceNumber });
+    while (duplicate) {
+      updatedBusiness = await Business.findOneAndUpdate(
+        { _id: req.businessId },
+        { $inc: { "invoiceSettings.currentNumber": 1 } },
+        { new: true }
+      );
+      reservedSequence = updatedBusiness.invoiceSettings.currentNumber;
+      finalInvoiceNumber = `${prefix}${String(reservedSequence).padStart(4, "0")}`;
+      duplicate = await Invoice.findOne({ businessId: req.businessId, invoiceNumber: finalInvoiceNumber });
     }
 
     // Determine payment amounts
@@ -143,7 +162,7 @@ export const CreateInvoiceController = async (req, res) => {
       };
     }
 
-    // Create Invoice
+    // Create Invoice with atomic unique invoice number
     const invoice = await Invoice.create({
       businessId: req.businessId,
       createdBy: req.user._id,
@@ -191,11 +210,6 @@ export const CreateInvoiceController = async (req, res) => {
       targetCustomer.outstandingBalance = roundMoney(targetCustomer.outstandingBalance + balanceDue);
       await targetCustomer.save();
     }
-
-    // Increment Business sequence number
-    await Business.findByIdAndUpdate(req.businessId, {
-      $inc: { "invoiceSettings.currentNumber": 1 },
-    });
 
     return res.status(201).json({
       success: true,

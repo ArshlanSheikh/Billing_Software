@@ -163,3 +163,45 @@
   background-color: rgba(239, 68, 68, 0.15);
   color: #ef4444;
 }
+
+/* =========================================
+   Compact Sidebar Mode (New Bill Screen)
+   ========================================= */
+.sidebarCompact {
+  width: 66px !important;
+  align-items: center;
+}
+
+.sidebarCompact .brand {
+  padding: 16px 10px;
+  justify-content: center;
+  width: 100%;
+}
+
+.sidebarCompact .nav {
+  padding: 12px 6px;
+  width: 100%;
+  align-items: center;
+}
+
+.sidebarCompact .navItem {
+  justify-content: center;
+  padding: 10px;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  gap: 0;
+}
+
+.sidebarCompact .newBillHighlight {
+  margin-bottom: 6px;
+}
+
+.sidebarCompact .footer {
+  padding: 12px 6px;
+  flex-direction: column;
+  gap: 10px;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+}

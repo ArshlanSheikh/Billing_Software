@@ -1,8 +1,47 @@
 import { Category } from "./category.model.js";
 
+export const DEFAULT_CATEGORIES = [
+  "General",
+  "Clothing",
+  "Grocery",
+  "Electronics",
+  "Footwear",
+  "Accessories",
+  "Home & Kitchen",
+  "Beauty & Personal Care",
+  "Stationery",
+  "Services",
+  "Other",
+];
+
 export const GetCategoriesController = async (req, res) => {
   try {
-    const categories = await Category.find({ businessId: req.businessId }).sort({ name: 1 });
+    let categories = await Category.find({ businessId: req.businessId }).sort({ name: 1 });
+
+    // Seed default categories if none exist for this business
+    if (categories.length === 0) {
+      const defaultDocs = DEFAULT_CATEGORIES.map((name) => ({
+        businessId: req.businessId,
+        name,
+        description: `Default category for ${name}`,
+        isActive: true,
+      }));
+      await Category.insertMany(defaultDocs);
+      categories = await Category.find({ businessId: req.businessId }).sort({ name: 1 });
+    } else {
+      // Ensure "General" is always present for backward compatibility
+      const hasGeneral = categories.some((c) => c.name.toLowerCase() === "general");
+      if (!hasGeneral) {
+        await Category.create({
+          businessId: req.businessId,
+          name: "General",
+          description: "Default General category",
+          isActive: true,
+        });
+        categories = await Category.find({ businessId: req.businessId }).sort({ name: 1 });
+      }
+    }
+
     return res.status(200).json({
       success: true,
       message: "Categories fetched successfully",

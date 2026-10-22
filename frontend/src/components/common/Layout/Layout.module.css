@@ -16,3 +16,7 @@
   flex: 1;
   padding: 24px;
 }
+
+.compactContentArea {
+  padding: 12px 14px;
+}

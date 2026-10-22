@@ -1,4 +1,8 @@
 import { Product } from "./product.model.js";
+import {
+  uploadImageToCloudinary,
+  deleteImageFromCloudinary,
+} from "../../config/cloudinary.js";
 
 export const GetProductsController = async (req, res) => {
   try {
@@ -15,7 +19,13 @@ export const GetProductsController = async (req, res) => {
 
     if (search && search.trim() !== "") {
       const regex = new RegExp(search.trim(), "i");
-      filter.$or = [{ name: regex }, { sku: regex }, { category: regex }];
+      filter.$or = [
+        { name: regex },
+        { sku: regex },
+        { barcode: regex },
+        { brand: regex },
+        { category: regex },
+      ];
     }
 
     const products = await Product.find(filter).sort({ createdAt: -1 });
@@ -42,7 +52,7 @@ export const SearchProductsController = async (req, res) => {
     const { query } = req.query;
     if (!query || query.trim() === "") {
       const activeProducts = await Product.find({ businessId: req.businessId, isActive: true })
-        .limit(20)
+        .limit(30)
         .sort({ name: 1 });
       return res.status(200).json({
         success: true,
@@ -56,9 +66,15 @@ export const SearchProductsController = async (req, res) => {
     const products = await Product.find({
       businessId: req.businessId,
       isActive: true,
-      $or: [{ name: regex }, { sku: regex }, { category: regex }],
+      $or: [
+        { name: regex },
+        { sku: regex },
+        { barcode: regex },
+        { brand: regex },
+        { category: regex },
+      ],
     })
-      .limit(20)
+      .limit(30)
       .sort({ name: 1 });
 
     return res.status(200).json({
@@ -109,6 +125,46 @@ export const GetProductByIdController = async (req, res) => {
   }
 };
 
+export const UploadProductImageController = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "No image file provided",
+        data: null,
+        error: "NO_FILE",
+      });
+    }
+
+    const { oldPublicId } = req.body;
+
+    const result = await uploadImageToCloudinary(req.file.buffer);
+
+    // If a previous publicId was provided, remove it from Cloudinary
+    if (oldPublicId && typeof oldPublicId === "string" && oldPublicId.trim() !== "") {
+      await deleteImageFromCloudinary(oldPublicId.trim());
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Product image uploaded successfully",
+      data: {
+        imageUrl: result.secure_url,
+        imagePublicId: result.public_id,
+      },
+      error: null,
+    });
+  } catch (error) {
+    console.error("[UploadProductImage Error]:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to upload image to Cloudinary",
+      data: null,
+      error: error.message,
+    });
+  }
+};
+
 export const CreateProductController = async (req, res) => {
   try {
     const comingData = req.body;
@@ -134,13 +190,18 @@ export const CreateProductController = async (req, res) => {
     const {
       name,
       sku,
+      barcode,
+      brand,
+      hsnCode,
       description,
       category,
       sellingPrice,
+      mrp,
       purchasePrice,
       unit,
       taxRate,
       imageUrl,
+      imagePublicId,
     } = comingData;
 
     // Check SKU uniqueness if provided
@@ -163,13 +224,18 @@ export const CreateProductController = async (req, res) => {
       businessId: req.businessId,
       name: name.trim(),
       sku: sku ? sku.trim() : "",
+      barcode: barcode ? barcode.trim() : "",
+      brand: brand ? brand.trim() : "",
+      hsnCode: hsnCode ? hsnCode.trim() : "",
       description: description ? description.trim() : "",
       category: category ? category.trim() : "General",
       sellingPrice: Number(sellingPrice),
-      purchasePrice: purchasePrice !== undefined ? Number(purchasePrice) : 0,
+      mrp: mrp !== undefined && mrp !== "" ? Number(mrp) : 0,
+      purchasePrice: purchasePrice !== undefined && purchasePrice !== "" ? Number(purchasePrice) : 0,
       unit: unit ? unit.trim().toLowerCase() : "piece",
       taxRate: taxRate !== undefined ? Number(taxRate) : 0,
       imageUrl: imageUrl ? imageUrl.trim() : "",
+      imagePublicId: imagePublicId ? imagePublicId.trim() : "",
       isActive: true,
     });
 
@@ -222,22 +288,41 @@ export const UpdateProductController = async (req, res) => {
       }
     }
 
+    // Remove old Cloudinary image if it was replaced or removed
+    if (
+      comingData.imagePublicId !== undefined &&
+      product.imagePublicId &&
+      product.imagePublicId !== comingData.imagePublicId
+    ) {
+      await deleteImageFromCloudinary(product.imagePublicId);
+    }
+
     const fields = [
       "name",
       "sku",
+      "barcode",
+      "brand",
+      "hsnCode",
       "description",
       "category",
       "sellingPrice",
+      "mrp",
       "purchasePrice",
       "unit",
       "taxRate",
       "imageUrl",
+      "imagePublicId",
       "isActive",
     ];
 
     fields.forEach((field) => {
       if (comingData[field] !== undefined) {
-        if (field === "sellingPrice" || field === "purchasePrice" || field === "taxRate") {
+        if (
+          field === "sellingPrice" ||
+          field === "mrp" ||
+          field === "purchasePrice" ||
+          field === "taxRate"
+        ) {
           product[field] = Number(comingData[field]);
         } else if (typeof comingData[field] === "string") {
           product[field] = comingData[field].trim();
@@ -269,7 +354,6 @@ export const UpdateProductController = async (req, res) => {
 export const DeleteProductController = async (req, res) => {
   try {
     const { id } = req.params;
-    // We can delete or soft-delete. Let's delete if requested, or deactivate.
     const deleted = await Product.findOneAndDelete({ _id: id, businessId: req.businessId });
 
     if (!deleted) {
@@ -279,6 +363,11 @@ export const DeleteProductController = async (req, res) => {
         data: null,
         error: "NOT_FOUND",
       });
+    }
+
+    // If product had a Cloudinary image, clean it up
+    if (deleted.imagePublicId) {
+      await deleteImageFromCloudinary(deleted.imagePublicId);
     }
 
     return res.status(200).json({
