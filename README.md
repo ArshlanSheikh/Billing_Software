@@ -1,15 +1,22 @@
 # Billing Software — General-Purpose POS & Billing Web Application
 
-A modern, responsive, general-purpose billing and Point of Sale (POS) web application built using the **MERN** stack (MongoDB, Express.js, React, Node.js). 
+A modern, high-speed, general-purpose billing and Point of Sale (POS) web application built using the **MERN** stack (MongoDB, Express.js, React, Node.js). 
 
-Engineered for diverse seller types — including retail stores, clothing boutiques, grocery & kirana shops, electronics retailers, wholesalers, and service providers — to manage product catalogs, generate instant GST-compliant bills, record multi-mode payments, track customer credit ledgers, and view real-time sales reports.
+Engineered for diverse seller types — including retail stores, supermarkets, grocery & kirana stores, clothing boutiques, electronics retailers, wholesalers, and service providers — to manage product catalogs with Cloudinary image hosting, generate instant GST-compliant bills, download PDF invoices, record multi-mode payments, track customer credit ledgers, and view real-time sales reports.
 
 ---
 
-## Comprehensive Feature Breakdown
+## Key Features Breakdown
 
 ### 1. High-Speed Point of Sale (POS) Billing Engine (`/billing/new`)
 The New Bill interface is the core module of the application, designed with a focus on speed, ergonomic keyboard navigation, and fast checkout workflows:
+- **Compact Square-Tile Catalog Grid (Version 2):**
+  - **Square Aspect Ratio (`1:1`):** Redesigned product catalog cards into compact, modern square image tiles with full-cover background imagery.
+  - **Dynamic 5–6 Columns per Row:** Responsive CSS Grid dynamically scales to fit 5–6 products per row on desktop screens, displaying **20–30+ products simultaneously** without vertical stretching.
+  - **High-Legibility Gradient Overlay:** Smooth dark gradient overlay (`rgba(15, 23, 42, 0.95)` at base) ensures product titles, SKUs, and prices remain 100% readable over any product image.
+  - **Neutral Dark Slate Tile Fallback:** Elegant dark slate gradient background with centered iconography for items without product images.
+  - **Live In-Cart Quantity Badges:** Displays active cart quantities (`x1`, `x2`, ...) overlaid on the top-right corner of each card.
+  - **One-Click Cart Addition:** The entire square card is interactive; clicking adds or increments the item instantly.
 - **Instant Product Search & Barcode Support:** Search products in real time by name, SKU, or barcode. Selecting a product or scanning its barcode immediately appends it to the active bill table without reloading.
 - **Dynamic Line Item Manipulation:**
   - **Quantity Adjusters:** Increment, decrement, or type arbitrary decimal or integer quantities with immediate recalculation.
@@ -26,13 +33,28 @@ The New Bill interface is the core module of the application, designed with a fo
   - **Change Return Calculation:** Enter received amounts to instantly calculate change due to the customer.
   - **Credit / Partial Billing:** Supports partial payments and full credit sales (₹0 advance), automatically tagging the invoice as `PARTIALLY_PAID` or `UNPAID`.
   - **Quick Fill Buttons:** One-click shortcuts for "Full Amount", "Round Off", and "Credit (₹0)".
-- **Post-Sale Actions:**
-  - **Complete Sale & Print:** Finalizes the sale and immediately opens the browser print preview for thermal or A4 receipt printing.
+- **Post-Sale Actions & Document Export:**
+  - **Download PDF Invoice:** Instantly generates and downloads clean, vector-rendered A4 tax invoice PDFs using `html2pdf.js`.
+  - **Print Invoice:** Opens browser print preview optimized for standard desktop A4 or thermal receipt printers.
   - **Reset / Start New Bill:** Clears the form, fetches the next sequential invoice number, and resets inputs in one click.
 
 ---
 
-### 2. Zero-Trust Backend Calculation & Financial Integrity Engine
+### 2. Product Catalog Management & Cloudinary Image Storage (`/products`)
+Centralized inventory and goods/service catalog management:
+- **Cloudinary Image Hosting:**
+  - Direct image uploads processed in-memory via `multer` and streamed directly to **Cloudinary** (`v2`).
+  - Automated format conversion (`webp`/`auto`) and compression optimization (`quality: auto`).
+  - Automatic cleanup and deletion of old images from Cloudinary when updating or deleting products.
+- **Item Details:** Product name, SKU/item code, detailed description, category classification, selling price, internal purchase price (strictly hidden on customer invoices), unit of measure, and applicable GST rate.
+- **Flexible Units of Measurement:** Support for physical and service units including `piece`, `kg`, `gram`, `litre`, `meter`, `hour`, `service`, `box`, and `packet`.
+- **Dynamic Categories:** Create, edit, and organize categories (e.g., Beverages, Electronics, Apparel, Groceries) on the fly.
+- **Live Search & Category Filters:** Instant search by name or SKU, combined with category pill filters.
+- **Soft Deactivation & Deletion:** Safely mark products as inactive or delete unneeded items without breaking past invoice line items.
+
+---
+
+### 3. Zero-Trust Backend Calculation & Financial Integrity Engine
 To protect business owners from tampering, client-side rounding bugs, or inaccurate totals:
 - **Zero-Trust Validation:** The backend never trusts financial totals or tax amounts submitted by the browser. It extracts the raw line items and recalculates every single subtotal, item discount, invoice-level discount, tax bracket, and grand total on the server.
 - **Epsilon Financial Rounding:** All money arithmetic uses standard currency rounding (`Math.round((num + Number.EPSILON) * 100) / 100`) to eliminate JavaScript floating-point errors.
@@ -43,7 +65,7 @@ To protect business owners from tampering, client-side rounding bugs, or inaccur
 
 ---
 
-### 3. Business Profile, GST & Document Personalization (`/settings`)
+### 4. Business Profile, GST & Document Personalization (`/settings`)
 Enables each business to customize its branding, legal identity, and receipt styling:
 - **Store & Contact Details:** Store name, business category (Retail, Grocery, Electronics, Clothing, Wholesale, Services), owner name, contact phone, email, and full physical address.
 - **Tax & Legal Setup:** GSTIN (Goods and Services Tax Identification Number) configuration and default tax bracket selection.
@@ -52,16 +74,6 @@ Enables each business to customize its branding, legal identity, and receipt sty
   - Customizable starting sequence number (e.g., start billing from `1001`).
 - **Receipt Customization:** Multi-line Terms and Conditions and customizable footer notes (e.g., "Thank you for shopping with us!") printed at the bottom of all customer bills.
 - **Currency Preferences:** Configurable currency code and symbol (defaults to Indian Rupee `₹ INR`).
-
----
-
-### 4. Product & Service Catalog Management (`/products`)
-A centralized inventory catalog to maintain goods and service offerings:
-- **Item Details:** Product name, SKU/item code, detailed description, category classification, selling price, internal purchase price (strictly hidden on customer invoices), unit of measure, and applicable GST rate.
-- **Flexible Units of Measurement:** Support for physical and service units including `piece`, `kg`, `gram`, `litre`, `meter`, `hour`, `service`, `box`, and `packet`.
-- **Dynamic Categories:** Create, edit, and organize categories (e.g., Beverages, Electronics, Apparel, Groceries) on the fly.
-- **Live Search & Category Filters:** Instant search by name or SKU, combined with category pill filters.
-- **Soft Deactivation & Deletion:** Safely mark products as inactive or delete unneeded items without breaking past invoice line items.
 
 ---
 
@@ -83,7 +95,7 @@ Full lifecycle management of sales records:
   - Filter by payment status: `All Payments`, `Fully Paid`, `Partially Paid`, `Unpaid`.
   - Filter by lifecycle status: `All Statuses`, `Completed`, `Cancelled`, `Draft`.
   - Filter by date range (From Date to To Date).
-- **Interactive Document Modal:** View the complete, itemized tax invoice receipt on screen with one click.
+- **Interactive Document Modal & PDF Export:** View the complete, itemized tax invoice receipt on screen with one-click PDF download or printing.
 - **Controlled Invoice Cancellation Flow:**
   - Invoices cannot be silently deleted.
   - Cancelling an invoice requires a mandatory reason (e.g., "Customer returned goods", "Billing entry error").
@@ -122,19 +134,7 @@ Financial reports for tax accounting and inventory demand analysis:
 
 ---
 
-### 10. Print-Ready Tax Invoices & Receipts
-Clean, professional invoice templates designed for both standard desktop printing and point-of-sale thermal printers:
-- **Tax Invoice Header:** Store name, owner, full address, contact details, and GSTIN.
-- **Invoice Metadata:** Invoice number, date, due date, payment mode, and status badge (`PAID` / `PARTIALLY PAID` / `UNPAID`).
-- **Bill-To Section:** Customer name, phone, address, and GSTIN.
-- **Itemized Breakdown:** Item name, SKU, quantity, unit, unit rate, applied discounts, tax percentage, and line total.
-- **Totals & Taxes Breakdown:** Subtotal, item-level discounts, invoice discounts, GST breakdown, grand total, amount paid, and balance due.
-- **Receipt Footer:** Business terms and conditions, thank you note, and authorized signatory line.
-- **Print Optimization (`@media print`):** Strips navigation sidebars, headers, and buttons automatically during print to ensure clean A4 or receipt paper printing.
-
----
-
-### 11. Multi-Tenant Data Isolation & Security Architecture
+### 10. Multi-Tenant Data Isolation & Security Architecture
 - **Strict Data Scoping:** Every document in the database (`Business`, `User`, `Category`, `Product`, `Customer`, `Invoice`, `Payment`) is strictly associated with a `businessId`.
 - **Backend Authorization:** Authentication middleware automatically derives the `businessId` from the verified JWT token; queries and mutations are isolated to the caller's business.
 - **Security Protections:** Passwords hashed with salt via `bcryptjs`; private routes protected by JWT tokens with 7-day expiration.
@@ -143,10 +143,15 @@ Clean, professional invoice templates designed for both standard desktop printin
 
 ## Technology Stack
 
-- **Frontend:** React 19, Vite, CSS Modules & Global Design System, Lucide React icons, Axios
-- **Backend:** Node.js, Express.js
-- **Database:** MongoDB, Mongoose ODM
-- **Authentication:** JSON Web Tokens (JWT) & bcryptjs
+| Layer | Technologies |
+|---|---|
+| **Frontend Framework** | React 19, Vite 8, React Router DOM 7 |
+| **Styling & Icons** | CSS Modules, Custom Design System Tokens, Lucide React |
+| **Document Generation** | `html2pdf.js` (Client-side A4 PDF generation), `@media print` CSS |
+| **Backend Runtime** | Node.js (ES Modules), Express.js 4.x |
+| **Database & ODM** | MongoDB, Mongoose 8.x |
+| **Cloud Storage** | Cloudinary v2 SDK (`cloudinary`), Multer (memory storage) |
+| **Authentication & Security** | JSON Web Tokens (`jsonwebtoken`), `bcryptjs`, `cors`, `dotenv` |
 
 ---
 
@@ -156,15 +161,16 @@ Clean, professional invoice templates designed for both standard desktop printin
 Billing_Software/
 ├── backend/
 │   ├── app.js                   # Express configuration, CORS, and central routing
-│   ├── server.js                # Server startup and database connection
+│   ├── server.js                # Server startup, dotenv/config, and database connection
 │   ├── config/
-│   │   └── db.js                # Mongoose connection setup
+│   │   ├── db.js                # Mongoose connection setup
+│   │   └── cloudinary.js        # Cloudinary SDK initialization & image upload/delete handlers
 │   └── modules/
 │       ├── index.js             # Central router mounted at /api/v1
 │       ├── auth/                # User authentication, registration & middleware
 │       ├── business/            # Business profile & invoice preferences
 │       ├── categories/          # Product categories
-│       ├── products/            # Product & service catalog
+│       ├── products/            # Product catalog, upload middleware & Cloudinary storage
 │       ├── customers/           # Customer management & ledger history
 │       ├── invoices/            # Invoices, zero-trust calculation & PDF print
 │       ├── payments/            # Payment settlement ledger
@@ -179,18 +185,20 @@ Billing_Software/
 │       ├── index.css            # Global typography, color tokens, and print rules
 │       ├── services/
 │       │   └── api.js           # Central Axios client with auth interceptors
+│       ├── utils/
+│       │   └── pdfGenerator.js  # html2pdf.js invoice PDF generator
 │       ├── context/
 │       │   ├── AuthContext.jsx  # User & business session state
 │       │   └── ToastContext.jsx # Toast notifications
 │       ├── components/
 │       │   ├── common/          # Header, Sidebar, Modal, ConfirmDialog, Loader
-│       │   └── invoices/        # Printable tax invoice template
+│       │   └── invoices/        # Printable & PDF-ready tax invoice template
 │       ├── pages/
 │       │   ├── Auth/            # Sign In & Business Registration
 │       │   ├── Dashboard/       # Live sales KPIs & recent invoices
-│       │   ├── Billing/         # POS New Bill screen
-│       │   ├── Invoices/        # Invoice history & payment settlement
-│       │   ├── Products/        # Product catalog & categories
+│       │   ├── Billing/         # POS New Bill screen (Square tile catalog & cart)
+│       │   ├── Invoices/        # Invoice history, cancellation & payment settlement
+│       │   ├── Products/        # Product catalog & Cloudinary image management
 │       │   ├── Customers/       # Customer directory & ledger
 │       │   ├── Payments/        # Payment records ledger
 │       │   ├── Reports/         # Sales & GST reports
@@ -208,8 +216,9 @@ Billing_Software/
 ## Getting Started
 
 ### Prerequisites
-- [Node.js](https://nodejs.org/) (v18 or higher)
-- [MongoDB](https://www.mongodb.com/) (running locally or a MongoDB Atlas URI)
+- [Node.js](https://nodejs.org/) (v18 or higher recommended)
+- [MongoDB](https://www.mongodb.com/) (running locally on port 27017 or a MongoDB Atlas connection string)
+- [Cloudinary](https://cloudinary.com/) free account (for product image hosting)
 
 ---
 
@@ -230,15 +239,20 @@ Billing_Software/
    PORT=5000
    NODE_ENV=development
    MONGO_URI=mongodb://127.0.0.1:27017/billing_software
-   JWT_SECRET=your_jwt_secret_key_here
+   JWT_SECRET=super_secret_billing_jwt_token_key_2026_secure
    JWT_EXPIRES_IN=7d
    CLIENT_URL=http://localhost:5173
+
+   # Cloudinary Storage Configuration
+   CLOUDINARY_CLOUD_NAME=your_cloud_name
+   CLOUDINARY_API_KEY=your_api_key
+   CLOUDINARY_API_SECRET=your_api_secret
    ```
 
 4. Start the backend development server:
    ```bash
    npm run dev
-   # Runs on http://localhost:5000
+   # Runs on http://localhost:5000 with auto-reload (node --watch)
    ```
 
 ---
@@ -255,7 +269,7 @@ Billing_Software/
    npm install
    ```
 
-3. Configure environment variables in `frontend/.env`:
+3. Configure environment variables in `frontend/.env` (optional, defaults to `http://localhost:5000/api/v1`):
    ```env
    VITE_API_URL=http://localhost:5000/api/v1
    ```
@@ -270,9 +284,42 @@ Billing_Software/
 
 ---
 
+## API Endpoints Reference
+
+All endpoints are prefixed with `/api/v1` and protected with JWT Bearer authentication (except Auth endpoints):
+
+| Module | Method | Endpoint | Description |
+|---|---|---|---|
+| **Auth** | `POST` | `/auth/register` | Register new business owner & company account |
+| **Auth** | `POST` | `/auth/login` | Authenticate user & return JWT token |
+| **Auth** | `GET` | `/auth/me` | Fetch authenticated user profile & business data |
+| **Business** | `GET` | `/business/profile` | Retrieve business details & invoice settings |
+| **Business** | `PUT` | `/business/profile` | Update store info, GSTIN, invoice prefix & terms |
+| **Categories** | `GET` | `/categories` | List all product categories |
+| **Categories** | `POST` | `/categories` | Create a new category |
+| **Products** | `GET` | `/products` | List products with search & category filters |
+| **Products** | `POST` | `/products` | Create a new product |
+| **Products** | `POST` | `/products/upload-image`| Upload product image to Cloudinary |
+| **Products** | `PUT` | `/products/:id` | Update product details & image |
+| **Products** | `DELETE` | `/products/:id` | Soft delete/deactivate a product |
+| **Products** | `GET` | `/products/search` | Fast autocomplete search by name/SKU/barcode |
+| **Customers** | `GET` | `/customers` | List customers with credit balance counters |
+| **Customers** | `POST` | `/customers` | Register a new customer |
+| **Customers** | `GET` | `/customers/:id/ledger`| Chronological invoice & balance ledger |
+| **Invoices** | `GET` | `/invoices` | List invoices with status & date filtering |
+| **Invoices** | `POST` | `/invoices` | Create invoice with zero-trust server recalculation |
+| **Invoices** | `GET` | `/invoices/next-number`| Get the next sequential invoice number |
+| **Invoices** | `POST` | `/invoices/:id/cancel` | Cancel invoice with reason & balance reversal |
+| **Payments** | `GET` | `/payments` | List payment transaction logs |
+| **Payments** | `POST` | `/payments` | Record payment settlement against existing invoice |
+| **Reports** | `GET` | `/reports/dashboard` | Real-time sales, collections & dues KPIs |
+| **Reports** | `GET` | `/reports/sales` | Itemized sales, GST breakdown & product demand |
+
+---
+
 ## Verification & Production Build
 
-To test the frontend production bundle:
+To test and compile the frontend production bundle:
 
 ```bash
 cd frontend
