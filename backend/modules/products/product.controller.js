@@ -1,8 +1,11 @@
 import { Product } from "./product.model.js";
+import cloudinary from "../../config/cloudinary.js";
 import {
   uploadImageToCloudinary,
   deleteImageFromCloudinary,
 } from "../../config/cloudinary.js";
+
+
 
 export const GetProductsController = async (req, res) => {
   try {
@@ -127,6 +130,14 @@ export const GetProductByIdController = async (req, res) => {
 
 export const UploadProductImageController = async (req, res) => {
   try {
+
+    console.log("[UploadProductImageController] request hit .....");
+
+    console.log("req.file", req.file);
+    console.log("req.body", req.body);
+    console.log("req.businessId", req.businessId);
+
+
     if (!req.file) {
       return res.status(400).json({
         success: false,

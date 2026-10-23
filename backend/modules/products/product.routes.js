@@ -23,6 +23,7 @@ router.post(
   (req, res, next) => {
     uploadProductImage.single("image")(req, res, (err) => {
       if (err) {
+        console.log('failed here...')
         return res.status(400).json({
           success: false,
           message: err.message || "Failed to process image upload",
@@ -30,11 +31,13 @@ router.post(
           error: "UPLOAD_ERROR",
         });
       }
+      console.log('move to next .....')
       next();
     });
   },
   UploadProductImageController
 );
+
 router.post("/", CreateProductController);
 router.put("/:id", UpdateProductController);
 router.delete("/:id", DeleteProductController);

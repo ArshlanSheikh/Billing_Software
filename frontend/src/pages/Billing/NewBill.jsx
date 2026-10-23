@@ -466,7 +466,8 @@ const NewBill = () => {
                 return (
                   <div
                     key={p._id}
-                    className={styles.productCard}
+                    className={`${styles.productCard} ${!p.imageUrl ? styles.productCardNoImg : ""}`}
+                    style={p.imageUrl ? { backgroundImage: `url(${p.imageUrl})` } : undefined}
                     onClick={() => handleSelectProduct(p)}
                     title={`Click to add ${p.name} to bill`}
                   >
@@ -476,36 +477,34 @@ const NewBill = () => {
                       </span>
                     )}
 
-                    <div className={styles.productCardTop}>
-                      <div className={styles.productImageThumb}>
-                        {p.imageUrl ? (
-                          <img src={p.imageUrl} alt={p.name} />
-                        ) : (
-                          <Package size={20} />
-                        )}
+                    {!p.imageUrl && (
+                      <div className={styles.placeholderCenter}>
+                        <Package size={24} />
                       </div>
-                      <div className={styles.productInfo}>
-                        <div className={styles.productName}>{p.name}</div>
-                        <div className={styles.productMeta}>
-                          {p.sku ? `SKU: ${p.sku}` : p.category || "General"}
-                        </div>
-                      </div>
-                    </div>
+                    )}
 
-                    <div className={styles.productCardBottom}>
-                      <div className={styles.priceGroup}>
-                        <span className={styles.sellingPrice}>
-                          {currencySymbol}{Number(p.sellingPrice).toFixed(2)}
-                        </span>
-                        {p.mrp && Number(p.mrp) > Number(p.sellingPrice) && (
-                          <span className={styles.mrpPrice}>
-                            MRP: {currencySymbol}{Number(p.mrp).toFixed(2)}
+                    <div className={styles.productOverlayContent}>
+                      <div className={styles.productName}>{p.name}</div>
+                      {p.sku ? (
+                        <div className={styles.productSku}>SKU: {p.sku}</div>
+                      ) : p.category && p.category !== "General" ? (
+                        <div className={styles.productSku}>{p.category}</div>
+                      ) : null}
+                      <div className={styles.productPriceRow}>
+                        <div className={styles.priceGroup}>
+                          <span className={styles.sellingPrice}>
+                            {currencySymbol}{Number(p.sellingPrice).toFixed(2)}
                           </span>
-                        )}
+                          {p.mrp && Number(p.mrp) > Number(p.sellingPrice) && (
+                            <span className={styles.mrpPrice}>
+                              {currencySymbol}{Number(p.mrp).toFixed(2)}
+                            </span>
+                          )}
+                        </div>
+                        <span className={styles.productUnit}>
+                          /{p.unit || "pc"}
+                        </span>
                       </div>
-                      <span style={{ fontSize: "0.75rem", color: "#64748b" }}>
-                        /{p.unit || "pc"}
-                      </span>
                     </div>
                   </div>
                 );

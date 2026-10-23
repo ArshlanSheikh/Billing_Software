@@ -1,31 +1,30 @@
 import { v2 as cloudinary } from "cloudinary";
+import "dotenv/config";
 
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
+// Ensure Cloudinary instance is configured with current environment credentials
+export const configureCloudinary = () => {
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+    secure: true,
+  });
+  return cloudinary;
+};
 
-/**
- * Removes an image from Cloudinary by its public ID.
- * @param {string} publicId - Cloudinary public_id
- * @returns {Promise<any>}
- */
+// Initial config invocation
+configureCloudinary();
+
 export const deleteImageFromCloudinary = async (publicId) => {
   if (!publicId) return;
   try {
+    configureCloudinary();
     return await cloudinary.uploader.destroy(publicId);
   } catch (error) {
     console.error("[Cloudinary Delete Error]:", error.message);
   }
 };
 
-/**
- * Uploads an image buffer directly to Cloudinary using a stream.
- * @param {Buffer} fileBuffer - Image buffer from Multer memoryStorage
- * @param {string} folder - Cloudinary folder path
- * @returns {Promise<{ secure_url: string, public_id: string }>}
- */
 export const uploadImageToCloudinary = (fileBuffer, folder = "billing_software/products") => {
   return new Promise((resolve, reject) => {
     if (
@@ -39,6 +38,9 @@ export const uploadImageToCloudinary = (fileBuffer, folder = "billing_software/p
         )
       );
     }
+
+    // Refresh configuration to ensure credentials are active for the request
+    configureCloudinary();
 
     const uploadStream = cloudinary.uploader.upload_stream(
       {
